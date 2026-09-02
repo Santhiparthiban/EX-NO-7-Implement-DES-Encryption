@@ -18,43 +18,123 @@ Register number: 212225040377
 ```
 ```
 #include <stdio.h>
-#include <string.h>
-void encrypt(char *msg, char *key, char *enc, int len) {
-    int klen = strlen(key);
-    for (int i = 0; i < len; i++) enc[i] = msg[i] ^ key[i % klen];
-    enc[len] = '\0';
-}
-void decrypt(char *enc, char *key, char *dec, int len) {
-    int klen = strlen(key);
-    for (int i = 0; i < len; i++) dec[i] = enc[i] ^ key[i % klen];
-    dec[len] = '\0';
-}
-int main() {
-    char msg[100], key[100], enc[100], dec[100];
-    printf("Simulation of DES encryption and decryption\n");
-    printf("Enter the message to encrypt: ");
-    fgets(msg, sizeof(msg), stdin);
-    msg[strcspn(msg, "\n")] = '\0';
+#include <stdint.h>
 
-    printf("Enter the encryption key: ");
-    fgets(key, sizeof(key), stdin);
-    key[strcspn(key, "\n")] = '\0';
-    int len = strlen(msg);
-    encrypt(msg, key, enc, len);
-    printf("\nOriginal Message: %s\n", msg);
-    printf("Encrypted Message (Hex): ");
-    for (int i = 0; i < len; i++) printf("%02X ", (unsigned char)enc[i]);
+uint32_t feistel(uint32_t right, uint32_t key)
+{
+    return right ^ key;
+}
+
+/* Encryption */
+uint64_t encrypt(uint64_t plaintext, uint64_t key)
+{
+    uint32_t left, right;
+    uint32_t roundKey;
+
+    left = (uint32_t)(plaintext >> 32);
+    right = (uint32_t)plaintext;
+
+    for (int i = 0; i < 16; i++)
+    {
+        roundKey = (uint32_t)(key >> (i % 32));
+
+        uint32_t newRight =
+            left ^ feistel(right, roundKey);
+
+        left = right;
+        right = newRight;
+    }
+
+    /* Final swap */
+    return ((uint64_t)right << 32) | left;
+}
+
+/* Decryption */
+uint64_t decrypt(uint64_t ciphertext, uint64_t key)
+{
+    uint32_t left, right;
+    uint32_t roundKey;
+
+    /*
+       Encryption performs a final swap.
+       Therefore, undo the swap here.
+    */
+    left = (uint32_t)ciphertext;
+    right = (uint32_t)(ciphertext >> 32);
+
+    for (int i = 15; i >= 0; i--)
+    {
+        roundKey = (uint32_t)(key >> (i % 32));
+
+        uint32_t newLeft =
+            right ^ feistel(left, roundKey);
+
+        right = left;
+        left = newLeft;
+    }
+
+    return ((uint64_t)left << 32) | right;
+}
+
+int main()
+{
+    char text[9];
+    char keyText[9];
+
+    uint64_t plaintext = 0;
+    uint64_t key = 0;
+    uint64_t ciphertext;
+    uint64_t decrypted;
+
+    printf("Enter 8-character plaintext: ");
+    scanf("%8s", text);
+
+    printf("Enter 8-character key: ");
+    scanf("%8s", keyText);
+
+    /* Convert plaintext to 64-bit value */
+    for (int i = 0; i < 8; i++)
+    {
+        plaintext = (plaintext << 8) |
+                    (uint64_t)(unsigned char)text[i];
+    }
+
+    /* Convert key to 64-bit value */
+    for (int i = 0; i < 8; i++)
+    {
+        key = (key << 8) |
+              (uint64_t)(unsigned char)keyText[i];
+    }
+
+    /* Encryption */
+    ciphertext = encrypt(plaintext, key);
+
+    printf("\nPlaintext  : %s", text);
+    printf("\nKey        : %s", keyText);
+
+    printf("\nCiphertext : %016llX",
+           (unsigned long long)ciphertext);
+
+    /* Decryption */
+    decrypted = decrypt(ciphertext, key);
+
+    printf("\nDecrypted  : ");
+
+    for (int i = 7; i >= 0; i--)
+    {
+        printf("%c",
+               (char)(decrypted >> (i * 8)));
+    }
+
     printf("\n");
-    decrypt(enc, key, dec, len);
-    printf("Decrypted Message: %s\n", dec);
+
     return 0;
 }
 ```
 
 ## Output:
 
-<img width="1577" height="847" alt="Screenshot 2026-08-05 105532" src="https://github.com/user-attachments/assets/1bab83e0-7f65-4664-9a22-586a63ec4e1f" />
-
+<img width="1357" height="732" alt="Screenshot 2026-09-02 101107" src="https://github.com/user-attachments/assets/b38eeec7-774c-4b60-b217-d58444600a29" />
 
 ## Result:
   The program is executed successfully
